@@ -12,6 +12,8 @@
 
 namespace rinmime {
 
+static constexpr size_t kMaxCStringHeaderNameBytes = 64u * 1024u;
+
 struct Header {
     std::string name;
     std::string value;
@@ -20,6 +22,8 @@ struct Header {
 struct Headers {
     std::vector<Header> values;
 
+    /* name is a compatibility C-string entry point.  Callers needing an
+     * arbitrary non-NUL-terminated name should compare Header::name instead. */
     std::string get(const char* name) const;
 };
 

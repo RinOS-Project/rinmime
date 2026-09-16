@@ -438,7 +438,12 @@ bool mailboxListScan(const std::string& input, std::vector<Mailbox>& output,
 std::string Headers::get(const char* name) const {
     if (name == nullptr) return {};
     std::string wanted;
-    for (size_t index = 0u; name[index] != '\0'; ++index)
+    size_t length = 0u;
+    while (length < kMaxCStringHeaderNameBytes && name[length] != '\0')
+        ++length;
+    if (length == kMaxCStringHeaderNameBytes) return {};
+    wanted.reserve(length);
+    for (size_t index = 0u; index < length; ++index)
         wanted.push_back(asciiLower(name[index]));
     for (const Header& item : values)
         if (item.name == wanted) return item.value;
