@@ -3,12 +3,6 @@
 #include "../include/rinmime/registry.hpp"
 #include "../include/rinmime/registry.h"
 
-/* The C implementation is the single registry owner. Keeping it included in
- * this translation unit preserves the existing C++-only source graph while
- * allowing freestanding C consumers (WinCompat/kernel32) to link registry.c
- * directly. */
-#include "registry.c"
-
 namespace rinmime {
 
 std::string normalizeMediaType(const std::string& mediaType) {

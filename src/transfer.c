@@ -38,8 +38,7 @@ static int decode_base64(const uint8_t* input, size_t input_size,
 {
     const int status = rin_encoding_base64_decode(
         input, input_size, RIN_ENCODING_BASE64_STANDARD,
-        RIN_ENCODING_BASE64_ALLOW_UNPADDED |
-            RIN_ENCODING_BASE64_ALLOW_WHITESPACE,
+        RIN_ENCODING_BASE64_ALLOW_WHITESPACE,
         output, output_capacity, output_size);
     if (status == RIN_ENCODING_OK) return RIN_MIME_OK;
     if (status == RIN_ENCODING_BUFFER_TOO_SMALL) return RIN_MIME_TOO_LARGE;
