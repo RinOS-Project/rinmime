@@ -4,6 +4,8 @@
 
 #include <stddef.h>
 
+#include <string.h>
+
 typedef struct RinMimeRegistryEntry {
     const char* extension;
     const char* media_type;
@@ -70,6 +72,12 @@ static size_t literal_size(const char* value)
     return size;
 }
 
+static void clear_output(char* output, size_t output_capacity)
+{
+    if (output != NULL && output_capacity != 0u)
+        memset(output, 0, output_capacity);
+}
+
 static int literal_equal_ci(const char* input, size_t input_size,
                             const char* literal)
 {
@@ -92,25 +100,34 @@ static int normalize_media_type(const char* input, size_t input_size,
     if (output_size == NULL || (input_size != 0u && input == NULL) ||
         (output_capacity != 0u && output == NULL)) {
         if (output_size != NULL) *output_size = 0u;
+        clear_output(output, output_capacity);
         return 0;
     }
     *output_size = 0u;
     while (begin < end && ascii_space((unsigned char)input[begin])) ++begin;
     while (end > begin && ascii_space((unsigned char)input[end - 1u])) --end;
-    if (begin == end || end - begin > RIN_MIME_REGISTRY_MAX_MEDIA_TYPE_BYTES)
+    if (begin == end || end - begin > RIN_MIME_REGISTRY_MAX_MEDIA_TYPE_BYTES) {
+        clear_output(output, output_capacity);
         return 0;
+    }
     for (index = begin; index < end; ++index) {
         unsigned char value = (unsigned char)input[index];
         if (value == (unsigned char)'/') {
-            if (slash != (size_t)-1) return 0;
+            if (slash != (size_t)-1) {
+                clear_output(output, output_capacity);
+                return 0;
+            }
             slash = index - begin;
         } else if (!token_char(value)) {
+            clear_output(output, output_capacity);
             return 0;
         }
     }
     if (slash == (size_t)-1 || slash == 0u || slash + 1u == end - begin ||
-        end - begin > output_capacity)
+        end - begin > output_capacity) {
+        clear_output(output, output_capacity);
         return 0;
+    }
     for (index = 0u; index < end - begin; ++index)
         output[index] = ascii_lower(input[begin + index]);
     *output_size = end - begin;
@@ -126,17 +143,23 @@ static int normalize_extension(const char* input, size_t input_size,
     if (output_size == NULL || (input_size != 0u && input == NULL) ||
         (output_capacity != 0u && output == NULL)) {
         if (output_size != NULL) *output_size = 0u;
+        clear_output(output, output_capacity);
         return 0;
     }
     *output_size = 0u;
     if (input_size != 0u && input[0] == '.') begin = 1u;
     if (begin == input_size || input_size - begin >
         RIN_MIME_REGISTRY_MAX_EXTENSION_BYTES ||
-        input_size - begin > output_capacity)
+        input_size - begin > output_capacity) {
+        clear_output(output, output_capacity);
         return 0;
+    }
     for (index = begin; index < input_size; ++index) {
         unsigned char value = (unsigned char)input[index];
-        if (!token_char(value) || value == (unsigned char)'.') return 0;
+        if (!token_char(value) || value == (unsigned char)'.') {
+            clear_output(output, output_capacity);
+            return 0;
+        }
         output[index - begin] = ascii_lower(input[index]);
     }
     *output_size = input_size - begin;
@@ -166,12 +189,19 @@ static int copy_view(const char* value, char* output, size_t output_capacity,
     size_t index;
     if (output_size == NULL || (output_capacity != 0u && output == NULL)) {
         if (output_size != NULL) *output_size = 0u;
+        clear_output(output, output_capacity);
         return 0;
     }
     *output_size = 0u;
-    if (value == NULL) return 0;
+    if (value == NULL) {
+        clear_output(output, output_capacity);
+        return 0;
+    }
     size = literal_size(value);
-    if (size > output_capacity) return 0;
+    if (size > output_capacity) {
+        clear_output(output, output_capacity);
+        return 0;
+    }
     for (index = 0u; index < size; ++index) output[index] = value[index];
     *output_size = size;
     return 1;

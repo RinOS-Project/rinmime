@@ -13,7 +13,8 @@ extern "C" {
 
 /* Normalize one bare media type into a caller-owned buffer. Parameters are
  * intentionally rejected; callers that need them must retain the MIME Part
- * parser contract. Returns non-zero on success. */
+ * parser contract. Returns non-zero on success. On failure output_size is
+ * zero and a provided output range is cleared. */
 int rin_mime_registry_normalize_media_type(const char* input, size_t input_size,
                                            char* output, size_t output_capacity,
                                            size_t* output_size);
@@ -30,7 +31,8 @@ const char* rin_mime_registry_preferred_extension_view(
     const char* media_type, size_t media_type_size);
 
 /* Copy a known registry value to caller-owned storage. The result does not
- * include a terminating NUL; output_size reports the exact byte count. */
+ * include a terminating NUL; output_size reports the exact byte count. On
+ * failure output_size is zero and a provided output range is cleared. */
 int rin_mime_registry_media_type_for_extension(
     const char* extension, size_t extension_size, char* output,
     size_t output_capacity, size_t* output_size);
