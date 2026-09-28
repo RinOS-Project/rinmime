@@ -66,6 +66,16 @@ bool startsWithInsensitive(const std::string& value, const char* prefix) {
     return true;
 }
 
+struct ScanBudget {
+    size_t remaining;
+
+    bool consume(size_t amount) {
+        if (amount > remaining) return false;
+        remaining -= amount;
+        return true;
+    }
+};
+
 bool headerNameValid(const std::string& name) {
     if (name.empty()) return false;
     for (char byte : name) {
@@ -149,9 +159,23 @@ std::string parameter(const std::string& value, const char* wanted,
 }
 
 bool findBoundary(const std::string& body, const std::string& marker,
-                  size_t from, size_t& position, bool& closing) {
+                  size_t from, size_t& position, bool& closing,
+                  ScanBudget& budget) {
+    if (marker.empty() || from >= body.size() || marker.size() > body.size() - from)
+        return false;
     size_t cursor = from;
-    while ((cursor = body.find(marker, cursor)) != std::string::npos) {
+    const size_t lastCandidate = body.size() - marker.size();
+    while (cursor <= lastCandidate) {
+        if (!budget.consume(1u)) return false;
+        if (body[cursor] != marker[0]) {
+            ++cursor;
+            continue;
+        }
+        if (marker.size() > 1u && !budget.consume(marker.size() - 1u)) return false;
+        if (body.compare(cursor, marker.size(), marker) != 0) {
+            ++cursor;
+            continue;
+        }
         const size_t after = cursor + marker.size();
         const bool atLineStart = cursor == 0u || body[cursor - 1u] == '\n';
         const bool validSuffix = after == body.size() || body.compare(after, 2u, "--") == 0 ||
@@ -169,7 +193,8 @@ bool findBoundary(const std::string& body, const std::string& marker,
 
 bool splitMime(const Headers& headers, const std::string& body,
                const std::string& prefix, size_t depth,
-               std::vector<Part>& parts, const Limits& limits) {
+               std::vector<Part>& parts, const Limits& limits,
+               ScanBudget& scanBudget) {
     if (depth >= limits.maxNestingDepth || parts.size() >= limits.maxParts) return false;
     if (!contentTypeConsistent(headers)) return false;
     std::string contentType = headers.get("content-type");
@@ -189,14 +214,14 @@ bool splitMime(const Headers& headers, const std::string& body,
         bool terminated = false;
         size_t position = 0u;
         bool closing = false;
-        while (findBoundary(body, marker, cursor, position, closing)) {
+        while (findBoundary(body, marker, cursor, position, closing, scanBudget)) {
             size_t after = position + marker.size();
             if (closing) { terminated = true; break; }
             if (body.compare(after, 2u, "\r\n") == 0) after += 2u;
             else if (after < body.size() && body[after] == '\n') ++after;
             size_t next = 0u;
             bool nextClosing = false;
-            if (!findBoundary(body, marker, after, next, nextClosing)) return false;
+            if (!findBoundary(body, marker, after, next, nextClosing, scanBudget)) return false;
             (void)nextClosing;
             std::string raw = body.substr(after, next - after);
             while (!raw.empty() && (raw.back() == '\r' || raw.back() == '\n')) raw.pop_back();
@@ -209,7 +234,7 @@ bool splitMime(const Headers& headers, const std::string& body,
             const std::string number = decimal(child++);
             const std::string childId = prefix.empty() ? number : prefix + "." + number;
             if (!splitMime(childHeaders, raw.substr(separator + skip), childId,
-                           depth + 1u, parts, limits)) return false;
+                           depth + 1u, parts, limits, scanBudget)) return false;
             cursor = next;
         }
         return terminated;
@@ -468,6 +493,7 @@ bool parseMailboxList(const std::string& input, std::vector<Mailbox>& result,
 
 bool parseParts(const std::string& raw, std::vector<Part>& parts, const Limits& limits) {
     parts.clear();
+    std::vector<Part> candidate;
     if (raw.empty() || raw.size() > limits.maxRawBytes) return false;
     size_t separator = raw.find("\r\n\r\n");
     size_t skip = 4u;
@@ -475,7 +501,11 @@ bool parseParts(const std::string& raw, std::vector<Part>& parts, const Limits& 
     if (separator == std::string::npos) return false;
     Headers root;
     if (!parseHeaderBlock(raw.substr(0u, separator), root, limits)) return false;
-    return splitMime(root, raw.substr(separator + skip), {}, 0u, parts, limits);
+    ScanBudget scanBudget{limits.maxScanBytes};
+    if (!splitMime(root, raw.substr(separator + skip), {}, 0u, candidate, limits,
+                   scanBudget)) return false;
+    parts.swap(candidate);
+    return true;
 }
 
 } // namespace rinmime

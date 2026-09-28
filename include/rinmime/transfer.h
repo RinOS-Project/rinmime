@@ -2,8 +2,12 @@
 #ifndef RINMIME_TRANSFER_H
 #define RINMIME_TRANSFER_H
 
+#if !defined(_STDDEF_H)
 #include <stddef.h>
+#endif
+#if !defined(_STDINT_H)
 #include <stdint.h>
+#endif
 
 #define RIN_MIME_NESTING_DEPTH_MAX 16u
 #define RIN_MIME_PART_COUNT_MAX 256u

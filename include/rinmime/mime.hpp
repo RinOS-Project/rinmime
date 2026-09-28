@@ -6,7 +6,9 @@
 #include "../../../libcxx/string.h"
 #include "../../../libcxx/vector.h"
 
+#if !defined(_STDDEF_H)
 #include <stddef.h>
+#endif
 
 #include "transfer.h"
 
@@ -49,6 +51,10 @@ struct Limits {
     size_t maxAttachments = RIN_MIME_ATTACHMENT_COUNT_MAX;
     size_t maxBoundaryBytes = 200u;
     size_t maxParameters = 64u;
+    /* Upper bound for boundary candidate checks across the complete parse.
+     * This protects callers from pathological repeated-marker inputs without
+     * imposing a wall-clock policy inside the public library. */
+    size_t maxScanBytes = 64u * 1024u * 1024u;
 };
 
 struct Mailbox {
