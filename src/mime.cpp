@@ -76,6 +76,32 @@ struct ScanBudget {
     }
 };
 
+size_t findMarker(const std::string& body, const std::string& marker,
+                  size_t from) {
+    const size_t markerLast = marker.size() - 1u;
+    const size_t lastCandidate = body.size() - marker.size();
+    size_t cursor = from;
+    while (cursor <= lastCandidate) {
+        const char tail = body[cursor + markerLast];
+        if (tail == marker[markerLast]) {
+            size_t index = 0u;
+            while (index < markerLast &&
+                   body[cursor + index] == marker[index])
+                ++index;
+            if (index == markerLast) return cursor;
+        }
+        size_t shift = marker.size();
+        for (size_t index = markerLast; index != 0u; --index) {
+            if (marker[index - 1u] == tail) {
+                shift = markerLast - (index - 1u);
+                break;
+            }
+        }
+        cursor += shift;
+    }
+    return std::string::npos;
+}
+
 bool headerNameValid(const std::string& name) {
     if (name.empty()) return false;
     for (char byte : name) {
@@ -166,7 +192,7 @@ bool findBoundary(const std::string& body, const std::string& marker,
     size_t cursor = from;
     const size_t lastCandidate = body.size() - marker.size();
     while (cursor <= lastCandidate) {
-        const size_t candidate = body.find(marker, cursor);
+        const size_t candidate = findMarker(body, marker, cursor);
         if (candidate == std::string::npos || candidate > lastCandidate) {
             if (body.size() - cursor > budget.remaining)
                 return false;
