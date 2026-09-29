@@ -166,16 +166,20 @@ bool findBoundary(const std::string& body, const std::string& marker,
     size_t cursor = from;
     const size_t lastCandidate = body.size() - marker.size();
     while (cursor <= lastCandidate) {
-        if (!budget.consume(1u)) return false;
-        if (body[cursor] != marker[0]) {
-            ++cursor;
-            continue;
+        const size_t candidate = body.find(marker, cursor);
+        if (candidate == std::string::npos || candidate > lastCandidate) {
+            if (body.size() - cursor > budget.remaining)
+                return false;
+            budget.remaining -= body.size() - cursor;
+            return false;
         }
-        if (marker.size() > 1u && !budget.consume(marker.size() - 1u)) return false;
-        if (body.compare(cursor, marker.size(), marker) != 0) {
-            ++cursor;
-            continue;
-        }
+        if (candidate - cursor > budget.remaining)
+            return false;
+        budget.remaining -= candidate - cursor;
+        if (marker.size() > budget.remaining)
+            return false;
+        budget.remaining -= marker.size();
+        cursor = candidate;
         const size_t after = cursor + marker.size();
         const bool atLineStart = cursor == 0u || body[cursor - 1u] == '\n';
         const bool validSuffix = after == body.size() || body.compare(after, 2u, "--") == 0 ||
