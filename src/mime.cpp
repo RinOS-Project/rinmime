@@ -77,19 +77,12 @@ struct ScanBudget {
 };
 
 size_t findMarker(const std::string& body, const std::string& marker,
-                  size_t from) {
+                  size_t from, ScanBudget& budget) {
     const size_t markerLast = marker.size() - 1u;
     const size_t lastCandidate = body.size() - marker.size();
     size_t cursor = from;
     while (cursor <= lastCandidate) {
         const char tail = body[cursor + markerLast];
-        if (tail == marker[markerLast]) {
-            size_t index = 0u;
-            while (index < markerLast &&
-                   body[cursor + index] == marker[index])
-                ++index;
-            if (index == markerLast) return cursor;
-        }
         size_t shift = marker.size();
         for (size_t index = markerLast; index != 0u; --index) {
             if (marker[index - 1u] == tail) {
@@ -97,6 +90,15 @@ size_t findMarker(const std::string& body, const std::string& marker,
                 break;
             }
         }
+        if (tail == marker[markerLast]) {
+            if (!budget.consume(marker.size())) return std::string::npos;
+            size_t index = 0u;
+            while (index < markerLast &&
+                   body[cursor + index] == marker[index])
+                ++index;
+            if (index == markerLast) return cursor;
+        }
+        if (!budget.consume(shift)) return std::string::npos;
         cursor += shift;
     }
     return std::string::npos;
@@ -192,19 +194,13 @@ bool findBoundary(const std::string& body, const std::string& marker,
     size_t cursor = from;
     const size_t lastCandidate = body.size() - marker.size();
     while (cursor <= lastCandidate) {
-        const size_t candidate = findMarker(body, marker, cursor);
+        const size_t candidate = findMarker(body, marker, cursor, budget);
         if (candidate == std::string::npos || candidate > lastCandidate) {
             if (body.size() - cursor > budget.remaining)
                 return false;
             budget.remaining -= body.size() - cursor;
             return false;
         }
-        if (candidate - cursor > budget.remaining)
-            return false;
-        budget.remaining -= candidate - cursor;
-        if (marker.size() > budget.remaining)
-            return false;
-        budget.remaining -= marker.size();
         cursor = candidate;
         const size_t after = cursor + marker.size();
         const bool atLineStart = cursor == 0u || body[cursor - 1u] == '\n';
