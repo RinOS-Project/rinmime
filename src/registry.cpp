@@ -6,6 +6,9 @@
 namespace rinmime {
 
 std::string normalizeMediaType(const std::string& mediaType) {
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+    try {
+#endif
     std::string result(mediaType.size(), '\0');
     size_t resultSize = 0u;
     const char* input = mediaType.empty() ? nullptr : mediaType.data();
@@ -15,6 +18,11 @@ std::string normalizeMediaType(const std::string& mediaType) {
         return {};
     result.resize(resultSize);
     return result;
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+    } catch (const std::bad_alloc&) {
+        return {};
+    }
+#endif
 }
 
 bool mediaTypesEqual(const std::string& left, const std::string& right) {

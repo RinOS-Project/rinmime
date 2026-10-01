@@ -487,6 +487,9 @@ bool mailboxListScan(const std::string& input, std::vector<Mailbox>& output,
 } // namespace
 
 std::string Headers::get(const char* name) const {
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+    try {
+#endif
     if (name == nullptr) return {};
     std::string wanted;
     size_t length = 0u;
@@ -499,25 +502,49 @@ std::string Headers::get(const char* name) const {
     for (const Header& item : values)
         if (item.name == wanted) return item.value;
     return {};
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+    } catch (const std::bad_alloc&) {
+        return {};
+    }
+#endif
 }
 
 bool parseHeaders(const std::string& input, Headers& result,
                   const Limits& limits) {
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+    try {
+#endif
     Headers candidate;
     if (!parseHeaderBlock(input, candidate, limits)) return false;
     result = std::move(candidate);
     return true;
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+    } catch (const std::bad_alloc&) {
+        return false;
+    }
+#endif
 }
 
 bool parseMailboxList(const std::string& input, std::vector<Mailbox>& result,
                       const MailboxLimits& limits) {
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+    try {
+#endif
     std::vector<Mailbox> candidate;
     if (!mailboxListScan(input, candidate, limits)) return false;
     result.swap(candidate);
     return true;
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+    } catch (const std::bad_alloc&) {
+        return false;
+    }
+#endif
 }
 
 bool parseParts(const std::string& raw, std::vector<Part>& parts, const Limits& limits) {
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+    try {
+#endif
     parts.clear();
     std::vector<Part> candidate;
     if (raw.empty() || raw.size() > limits.maxRawBytes) return false;
@@ -532,6 +559,11 @@ bool parseParts(const std::string& raw, std::vector<Part>& parts, const Limits& 
                    scanBudget)) return false;
     parts.swap(candidate);
     return true;
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+    } catch (const std::bad_alloc&) {
+        return false;
+    }
+#endif
 }
 
 } // namespace rinmime
