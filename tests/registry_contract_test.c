@@ -22,6 +22,10 @@ int main(void) {
     char output[32];
     size_t output_size = 99u;
     char oversized_path[RIN_MIME_REGISTRY_MAX_PATH_BYTES + 1u];
+    static const char embedded_nul_path[] = {
+        '/', 't', 'm', 'p', '/', 'r', 'e', 'p', 'o', 's', 'i', 't', 'o', 'r',
+        'y', '\0', '.', 'p', 'n', 'g'
+    };
 
     fill(output, sizeof(output), 0xA5u);
     if (rin_mime_registry_normalize_media_type(
@@ -61,6 +65,9 @@ int main(void) {
     if (rin_mime_registry_media_type_for_path_view(
             oversized_path, RIN_MIME_REGISTRY_MAX_PATH_BYTES + 1u) != NULL)
         return 5;
+    if (rin_mime_registry_media_type_for_path_view(
+            embedded_nul_path, sizeof(embedded_nul_path)) != NULL)
+        return 6;
 
     return 0;
 }

@@ -231,6 +231,7 @@ const char* rin_mime_registry_media_type_for_path_view(
         path_size > RIN_MIME_REGISTRY_MAX_PATH_BYTES)
         return NULL;
     for (index = 0u; index < path_size; ++index) {
+        if (path[index] == '\0') return NULL;
         if (path[index] == '/' || path[index] == '\\') {
             component_begin = index + 1u;
             dot = (size_t)-1;
