@@ -80,10 +80,10 @@ struct MailboxLimits {
 bool parseHeaders(const std::string& input, Headers& result,
                   const Limits& limits = Limits{});
 
-/* Parse an envelope mailbox list. This deliberately accepts only the
- * unambiguous dot-atom address form with an optional display name; comments,
- * groups, quoted local-parts, and malformed domain literals are rejected.
- * UTF-8 local-parts are accepted only when allowUtf8LocalPart is enabled. */
+/* Parse an envelope mailbox list. This accepts dot-atom or quoted local-parts
+ * with an optional display name, and DNS, IPv4, or IPv6 domains. Comments,
+ * groups, and unsupported general address literals are rejected. UTF-8 local-
+ * parts are accepted only when allowUtf8LocalPart is enabled. */
 bool parseMailboxList(const std::string& input, std::vector<Mailbox>& result,
                       const MailboxLimits& limits = MailboxLimits{});
 

@@ -317,25 +317,88 @@ bool mailboxAtext(unsigned char value) {
            value == '~';
 }
 
-bool mailboxDomainValid(const std::string& domain) {
-    if (domain.empty() || domain.size() > 255u) return false;
-    if (domain.front() == '[' || domain.back() == ']') {
-        if (domain.size() < 3u || domain.front() != '[' || domain.back() != ']')
+bool mailboxIpv4AddressValid(const std::string& address) {
+    size_t start = 0u;
+    size_t octets = 0u;
+    for (size_t index = 0u; index <= address.size(); ++index) {
+        if (index != address.size() && address[index] != '.') continue;
+        const size_t length = index - start;
+        if (length == 0u || length > 3u || octets >= 4u ||
+            (length > 1u && address[start] == '0'))
             return false;
-        bool hasSeparator = false;
-        for (size_t index = 1u; index + 1u < domain.size(); ++index) {
-            const unsigned char value = static_cast<unsigned char>(domain[index]);
-            if (value == ':' || value == '.') {
-                hasSeparator = true;
-                continue;
-            }
+        unsigned value = 0u;
+        for (size_t digit = start; digit < index; ++digit) {
+            if (address[digit] < '0' || address[digit] > '9') return false;
+            value = value * 10u +
+                static_cast<unsigned>(address[digit] - '0');
+        }
+        if (value > 255u) return false;
+        ++octets;
+        start = index + 1u;
+    }
+    return octets == 4u;
+}
+
+bool mailboxIpv6AddressValid(const std::string& address) {
+    if (address.empty()) return false;
+    bool compressed = false;
+    size_t words = 0u;
+    size_t cursor = 0u;
+    if (address.size() >= 2u && address[0] == ':' && address[1] == ':') {
+        compressed = true;
+        cursor = 2u;
+        if (cursor == address.size()) return true;
+    }
+    while (cursor < address.size()) {
+        size_t end = address.find(':', cursor);
+        if (end == std::string::npos) end = address.size();
+        if (end == cursor) return false;
+        const std::string token = address.substr(cursor, end - cursor);
+        if (token.find('.') != std::string::npos) {
+            if (end != address.size() || !mailboxIpv4AddressValid(token))
+                return false;
+            words += 2u;
+            cursor = end;
+            break;
+        }
+        if (token.size() > 4u) return false;
+        for (unsigned char value : token)
             if (!((value >= '0' && value <= '9') ||
                   (value >= 'a' && value <= 'f') ||
                   (value >= 'A' && value <= 'F')))
                 return false;
+        ++words;
+        cursor = end;
+        if (cursor == address.size()) break;
+        ++cursor;
+        if (cursor == address.size()) return false;
+        if (address[cursor] == ':') {
+            if (compressed) return false;
+            compressed = true;
+            ++cursor;
+            if (cursor == address.size()) break;
         }
-        return hasSeparator;
     }
+    return compressed ? words < 8u : words == 8u;
+}
+
+bool mailboxDomainLiteralValid(const std::string& domain) {
+    if (domain.size() < 3u || domain.front() != '[' || domain.back() != ']')
+        return false;
+    const std::string literal = domain.substr(1u, domain.size() - 2u);
+    if (literal.size() >= 5u &&
+        (literal[0] == 'I' || literal[0] == 'i') &&
+        (literal[1] == 'P' || literal[1] == 'p') &&
+        (literal[2] == 'V' || literal[2] == 'v') && literal[3] == '6' &&
+        literal[4] == ':')
+        return mailboxIpv6AddressValid(literal.substr(5u));
+    return mailboxIpv4AddressValid(literal);
+}
+
+bool mailboxDomainValid(const std::string& domain) {
+    if (domain.empty() || domain.size() > 255u) return false;
+    if (domain.front() == '[' || domain.back() == ']')
+        return mailboxDomainLiteralValid(domain);
     size_t labelStart = 0u;
     for (size_t index = 0u; index <= domain.size(); ++index) {
         if (index != domain.size() && domain[index] != '.') continue;
@@ -409,33 +472,87 @@ bool mailboxUtf8LocalScalarAllowed(uint32_t value) {
     return true;
 }
 
+bool mailboxFindAddressAt(const std::string& address, size_t& at) {
+    bool quoted = false;
+    bool escaped = false;
+    at = std::string::npos;
+    for (size_t index = 0u; index < address.size(); ++index) {
+        const char value = address[index];
+        if (quoted) {
+            if (escaped) escaped = false;
+            else if (value == '\\') escaped = true;
+            else if (value == '"') quoted = false;
+            continue;
+        }
+        if (value == '"') {
+            quoted = true;
+        } else if (value == '@') {
+            if (at != std::string::npos) return false;
+            at = index;
+        }
+    }
+    return !quoted && !escaped && at != std::string::npos;
+}
+
+bool mailboxQuotedLocalValid(const std::string& local, bool allowUtf8) {
+    if (local.size() < 2u || local.front() != '"' || local.back() != '"')
+        return false;
+    for (size_t index = 1u; index + 1u < local.size(); ++index) {
+        const unsigned char value = static_cast<unsigned char>(local[index]);
+        if (value == '\\') {
+            if (++index + 1u >= local.size()) return false;
+            const unsigned char escaped = static_cast<unsigned char>(local[index]);
+            if (escaped < 0x20u || escaped > 0x7eu) return false;
+            continue;
+        }
+        if (value < 0x80u) {
+            if (value < 0x20u || value > 0x7eu || value == '"') return false;
+            continue;
+        }
+        if (!allowUtf8) return false;
+        uint32_t codepoint = 0u;
+        size_t byteCount = 0u;
+        if (!mailboxUtf8Scalar(local, index, codepoint, byteCount) ||
+            byteCount > local.size() - 1u - index ||
+            !mailboxUtf8LocalScalarAllowed(codepoint))
+            return false;
+        index += byteCount - 1u;
+    }
+    return true;
+}
+
 bool mailboxAddressParse(const std::string& address, Mailbox& output,
                          const MailboxLimits& limits) {
-    const size_t at = address.find('@');
-    if (at == std::string::npos || at == 0u || at + 1u >= address.size() ||
-        address.find('@', at + 1u) != std::string::npos ||
+    size_t at = std::string::npos;
+    if (!mailboxFindAddressAt(address, at) || at == 0u ||
+        at + 1u >= address.size() ||
         address.size() > limits.maxAddressBytes)
         return false;
     const std::string local = address.substr(0u, at);
     const std::string domain = address.substr(at + 1u);
     if (local.size() > 64u || local.front() == '.' || local.back() == '.')
         return false;
-    for (size_t index = 0u; index < local.size();) {
-        const unsigned char value = static_cast<unsigned char>(local[index]);
-        if (local[index] == '.' && index != 0u && local[index - 1u] == '.')
+    if (local.front() == '"') {
+        if (!mailboxQuotedLocalValid(local, limits.allowUtf8LocalPart))
             return false;
-        if (value < 0x80u) {
-            if (local[index] != '.' && !mailboxAtext(value)) return false;
-            ++index;
-            continue;
+    } else {
+        for (size_t index = 0u; index < local.size();) {
+            const unsigned char value = static_cast<unsigned char>(local[index]);
+            if (local[index] == '.' && index != 0u && local[index - 1u] == '.')
+                return false;
+            if (value < 0x80u) {
+                if (local[index] != '.' && !mailboxAtext(value)) return false;
+                ++index;
+                continue;
+            }
+            if (!limits.allowUtf8LocalPart) return false;
+            uint32_t codepoint = 0u;
+            size_t byteCount = 0u;
+            if (!mailboxUtf8Scalar(local, index, codepoint, byteCount) ||
+                !mailboxUtf8LocalScalarAllowed(codepoint))
+                return false;
+            index += byteCount;
         }
-        if (!limits.allowUtf8LocalPart) return false;
-        uint32_t codepoint = 0u;
-        size_t byteCount = 0u;
-        if (!mailboxUtf8Scalar(local, index, codepoint, byteCount) ||
-            !mailboxUtf8LocalScalarAllowed(codepoint))
-            return false;
-        index += byteCount;
     }
     if (!mailboxDomainValid(domain)) return false;
     output.localPart = local;
@@ -477,23 +594,47 @@ bool mailboxDisplayParse(const std::string& source, std::string& output) {
     return true;
 }
 
+bool mailboxAngleBounds(const std::string& item, size_t& left, size_t& right) {
+    bool quoted = false;
+    bool escaped = false;
+    left = right = std::string::npos;
+    for (size_t index = 0u; index < item.size(); ++index) {
+        const char value = item[index];
+        if (quoted) {
+            if (escaped) escaped = false;
+            else if (value == '\\') escaped = true;
+            else if (value == '"') quoted = false;
+            continue;
+        }
+        if (value == '"') quoted = true;
+        else if (value == '<') {
+            if (left != std::string::npos || right != std::string::npos)
+                return false;
+            left = index;
+        } else if (value == '>') {
+            if (left == std::string::npos || right != std::string::npos)
+                return false;
+            right = index;
+        }
+    }
+    return !quoted && !escaped &&
+        ((left == std::string::npos && right == std::string::npos) ||
+         (left != std::string::npos && right != std::string::npos && right > left));
+}
+
 bool mailboxItemParse(const std::string& source, Mailbox& output,
                       const MailboxLimits& limits) {
     const std::string item = trim(source);
     if (item.empty()) return false;
-    const size_t left = item.find('<');
-    const size_t right = item.rfind('>');
+    size_t left = std::string::npos;
+    size_t right = std::string::npos;
+    if (!mailboxAngleBounds(item, left, right)) return false;
     std::string address;
-    if (left == std::string::npos || right == std::string::npos) {
-        if (left != std::string::npos || right != std::string::npos ||
-            item.find('"') != std::string::npos)
-            return false;
+    if (left == std::string::npos && right == std::string::npos) {
         output.displayName.clear();
         address = item;
     } else {
-        if (left == 0u || right <= left || right + 1u != item.size() ||
-            item.find('<', left + 1u) != std::string::npos ||
-            item.find('>', 0u) != right)
+        if (left == 0u || right + 1u != item.size())
             return false;
         if (!mailboxDisplayParse(item.substr(0u, left), output.displayName))
             return false;

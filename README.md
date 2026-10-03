@@ -18,7 +18,9 @@ RinMIME provides bounded MIME parsing and transfer decoding for RinOS mail and c
 | build | No standalone build manifest is documented. Integrate the public headers and sources through the RinOS consumer build. |
 | test | A `tests` directory is present, but this repository does not document a standalone test command. Run its tests through the owning RinOS build when available. |
 
-`rinmime::parseMailboxList` keeps ASCII dot-atom local-parts as its default.
-SMTPUTF8 callers can set `MailboxLimits::allowUtf8LocalPart` to accept bounded,
-strictly decoded UTF-8 local-parts. Domain labels remain ASCII; the parser
-does not validate punycode A-labels or perform IDNA conversion/normalization.
+`rinmime::parseMailboxList` accepts bounded dot-atom or quoted local-parts.
+SMTPUTF8 callers can set `MailboxLimits::allowUtf8LocalPart` to accept strictly
+decoded UTF-8 in either form. Domains accept ASCII DNS names, strict IPv4
+address literals, and `[IPv6:...]` literals. Other general address-literal
+tags are unsupported. Domain labels remain ASCII; RinMIME does not validate
+punycode A-labels or perform IDNA conversion/normalization.
