@@ -22,10 +22,10 @@ RinMIME provides bounded MIME parsing and transfer decoding for RinOS mail and c
 SMTPUTF8 callers can set `MailboxLimits::allowUtf8LocalPart` to accept strictly
 decoded UTF-8 in either form. Domains accept ASCII DNS names, strict IPv4 and
 `[IPv6:...]` literals, and bounded RFC 5321 general address-literal syntax.
-The parser validates the LDH tag and printable `dcontent`; tag-specific
-interpretation and delivery remain the transport's responsibility. Domain
-labels remain ASCII; RinMIME does not validate punycode A-labels or perform
-IDNA conversion/normalization.
+The parser validates the LDH tag and printable `dcontent`; it does not check
+IANA tag registration or interpret the tag-specific address format. Delivery
+remains the transport's responsibility. Domain labels remain ASCII; RinMIME
+does not validate punycode A-labels or perform IDNA conversion/normalization.
 Quoted-pairs in local-parts and display names accept visible ASCII plus HTAB;
 control bytes and DEL are rejected rather than copied into parsed metadata.
 MIME parameters are scanned with quote-aware semicolon handling; an unterminated
