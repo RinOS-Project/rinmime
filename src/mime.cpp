@@ -450,7 +450,32 @@ bool mailboxDomainLiteralValid(const std::string& domain) {
         (literal[2] == 'V' || literal[2] == 'v') && literal[3] == '6' &&
         literal[4] == ':')
         return mailboxIpv6AddressValid(literal.substr(5u));
-    return mailboxIpv4AddressValid(literal);
+    if (mailboxIpv4AddressValid(literal)) return true;
+
+    const size_t separator = literal.find(':');
+    if (separator == std::string::npos || separator == 0u ||
+        separator + 1u >= literal.size())
+        return false;
+    for (size_t index = 0u; index < separator; ++index) {
+        const unsigned char value = static_cast<unsigned char>(literal[index]);
+        if (!((value >= 'A' && value <= 'Z') ||
+              (value >= 'a' && value <= 'z') ||
+              (value >= '0' && value <= '9') || value == '-'))
+            return false;
+    }
+    const unsigned char last_tag =
+        static_cast<unsigned char>(literal[separator - 1u]);
+    if (!((last_tag >= 'A' && last_tag <= 'Z') ||
+          (last_tag >= 'a' && last_tag <= 'z') ||
+          (last_tag >= '0' && last_tag <= '9')))
+        return false;
+    for (size_t index = separator + 1u; index < literal.size(); ++index) {
+        const unsigned char value = static_cast<unsigned char>(literal[index]);
+        if (!((value >= 33u && value <= 90u) ||
+              (value >= 94u && value <= 126u)))
+            return false;
+    }
+    return true;
 }
 
 bool mailboxDomainValid(const std::string& domain) {
@@ -537,6 +562,7 @@ bool mailboxQuotedPairAsciiAllowed(unsigned char value) {
 bool mailboxFindAddressAt(const std::string& address, size_t& at) {
     bool quoted = false;
     bool escaped = false;
+    bool domain_literal = false;
     at = std::string::npos;
     for (size_t index = 0u; index < address.size(); ++index) {
         const char value = address[index];
@@ -546,11 +572,18 @@ bool mailboxFindAddressAt(const std::string& address, size_t& at) {
             else if (value == '"') quoted = false;
             continue;
         }
+        if (domain_literal) {
+            if (value == ']') domain_literal = false;
+            continue;
+        }
         if (value == '"') {
             quoted = true;
         } else if (value == '@') {
             if (at != std::string::npos) return false;
             at = index;
+        } else if (at != std::string::npos && index == at + 1u &&
+                   value == '[') {
+            domain_literal = true;
         }
     }
     return !quoted && !escaped && at != std::string::npos;
@@ -662,6 +695,8 @@ bool mailboxDisplayParse(const std::string& source, std::string& output) {
 bool mailboxAngleBounds(const std::string& item, size_t& left, size_t& right) {
     bool quoted = false;
     bool escaped = false;
+    bool address_domain = false;
+    bool domain_literal = false;
     left = right = std::string::npos;
     for (size_t index = 0u; index < item.size(); ++index) {
         const char value = item[index];
@@ -671,11 +706,18 @@ bool mailboxAngleBounds(const std::string& item, size_t& left, size_t& right) {
             else if (value == '"') quoted = false;
             continue;
         }
+        if (domain_literal) {
+            if (value == ']') domain_literal = false;
+            continue;
+        }
         if (value == '"') quoted = true;
+        else if (value == '@') address_domain = true;
+        else if (value == '[' && address_domain) domain_literal = true;
         else if (value == '<') {
             if (left != std::string::npos || right != std::string::npos)
                 return false;
             left = index;
+            address_domain = false;
         } else if (value == '>') {
             if (left == std::string::npos || right != std::string::npos)
                 return false;
@@ -718,6 +760,8 @@ bool mailboxListScan(const std::string& input, std::vector<Mailbox>& output,
     bool quoted = false;
     bool escaped = false;
     bool angle = false;
+    bool address_domain = false;
+    bool domain_literal = false;
     for (size_t index = 0u; index <= input.size(); ++index) {
         const bool end = index == input.size();
         const char value = end ? ',' : input[index];
@@ -728,13 +772,26 @@ bool mailboxListScan(const std::string& input, std::vector<Mailbox>& output,
                 else if (value == '"') quoted = false;
                 continue;
             }
+            if (domain_literal) {
+                if (value == ']') domain_literal = false;
+                continue;
+            }
             if (value == '"') {
                 quoted = true;
+                continue;
+            }
+            if (value == '@') {
+                address_domain = true;
+                continue;
+            }
+            if (value == '[' && address_domain) {
+                domain_literal = true;
                 continue;
             }
             if (value == '<') {
                 if (angle) return false;
                 angle = true;
+                address_domain = false;
                 continue;
             }
             if (value == '>') {
@@ -749,6 +806,7 @@ bool mailboxListScan(const std::string& input, std::vector<Mailbox>& output,
                                candidate.emplace_back(), limits))
             return false;
         start = index + 1u;
+        address_domain = false;
     }
     if (quoted || escaped || angle || candidate.empty()) return false;
     output.swap(candidate);

@@ -81,9 +81,10 @@ bool parseHeaders(const std::string& input, Headers& result,
                   const Limits& limits = Limits{});
 
 /* Parse an envelope mailbox list. This accepts dot-atom or quoted local-parts
- * with an optional display name, and DNS, IPv4, or IPv6 domains. Comments,
- * groups, and unsupported general address literals are rejected. UTF-8 local-
- * parts are accepted only when allowUtf8LocalPart is enabled. */
+ * with an optional display name, DNS names, IPv4/IPv6 literals, and bounded
+ * RFC 5321 general address-literal syntax. Tag-specific interpretation remains
+ * the transport's responsibility. Comments and groups are rejected. UTF-8
+ * local-parts are accepted only when allowUtf8LocalPart is enabled. */
 bool parseMailboxList(const std::string& input, std::vector<Mailbox>& result,
                       const MailboxLimits& limits = MailboxLimits{});
 
