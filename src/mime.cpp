@@ -396,7 +396,9 @@ bool mailboxUtf8Scalar(const std::string& input, size_t offset,
 }
 
 bool mailboxUtf8LocalScalarAllowed(uint32_t value) {
-    if (value <= 0xa0u || value == 0x00adu || value == 0x034fu ||
+    if (value <= 0xa0u || value == 0x1680u || value == 0x180eu ||
+        value == 0x205fu || value == 0x3000u || value == 0x00adu ||
+        value == 0x034fu ||
         value == 0x061cu || (value >= 0x2000u && value <= 0x200fu) ||
         (value >= 0x2028u && value <= 0x202fu) ||
         (value >= 0x2060u && value <= 0x206fu) || value == 0xfeffu ||
