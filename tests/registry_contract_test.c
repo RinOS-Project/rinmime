@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 
 #include <stddef.h>
+#include <string.h>
 
 #include "../include/rinmime/registry.h"
 
@@ -20,6 +21,7 @@ static int is_zero(const char* output, size_t capacity) {
 int main(void) {
     char output[32];
     size_t output_size = 99u;
+    char oversized_path[RIN_MIME_REGISTRY_MAX_PATH_BYTES + 1u];
 
     fill(output, sizeof(output), 0xA5u);
     if (rin_mime_registry_normalize_media_type(
@@ -49,6 +51,16 @@ int main(void) {
             "/tmp/unknown", 12u, output, sizeof(output), &output_size) != 0 ||
         output_size != 0u || !is_zero(output, sizeof(output)))
         return 4;
+
+    memset(oversized_path, 'a', sizeof(oversized_path));
+    oversized_path[0] = '/';
+    oversized_path[RIN_MIME_REGISTRY_MAX_PATH_BYTES - 4u] = '.';
+    oversized_path[RIN_MIME_REGISTRY_MAX_PATH_BYTES - 3u] = 'p';
+    oversized_path[RIN_MIME_REGISTRY_MAX_PATH_BYTES - 2u] = 'n';
+    oversized_path[RIN_MIME_REGISTRY_MAX_PATH_BYTES - 1u] = 'g';
+    if (rin_mime_registry_media_type_for_path_view(
+            oversized_path, RIN_MIME_REGISTRY_MAX_PATH_BYTES + 1u) != NULL)
+        return 5;
 
     return 0;
 }
