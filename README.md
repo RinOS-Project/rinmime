@@ -20,6 +20,5 @@ RinMIME provides bounded MIME parsing and transfer decoding for RinOS mail and c
 
 `rinmime::parseMailboxList` keeps ASCII dot-atom local-parts as its default.
 SMTPUTF8 callers can set `MailboxLimits::allowUtf8LocalPart` to accept bounded,
-strictly decoded UTF-8 local-parts. Domain labels remain ASCII (including
-caller-supplied IDNA A-labels); the parser does not perform IDNA conversion or
-normalization.
+strictly decoded UTF-8 local-parts. Domain labels remain ASCII; the parser
+does not validate punycode A-labels or perform IDNA conversion/normalization.
