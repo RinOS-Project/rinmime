@@ -472,6 +472,10 @@ bool mailboxUtf8LocalScalarAllowed(uint32_t value) {
     return true;
 }
 
+bool mailboxQuotedPairAsciiAllowed(unsigned char value) {
+    return value == '\t' || (value >= 0x20u && value <= 0x7eu);
+}
+
 bool mailboxFindAddressAt(const std::string& address, size_t& at) {
     bool quoted = false;
     bool escaped = false;
@@ -502,7 +506,7 @@ bool mailboxQuotedLocalValid(const std::string& local, bool allowUtf8) {
         if (value == '\\') {
             if (++index + 1u >= local.size()) return false;
             const unsigned char escaped = static_cast<unsigned char>(local[index]);
-            if (escaped < 0x20u || escaped > 0x7eu) return false;
+            if (!mailboxQuotedPairAsciiAllowed(escaped)) return false;
             continue;
         }
         if (value < 0x80u) {
@@ -574,6 +578,9 @@ bool mailboxDisplayParse(const std::string& source, std::string& output) {
             const unsigned char value = static_cast<unsigned char>(display[index]);
             if (value == '\\') {
                 if (++index + 1u >= display.size()) return false;
+                const unsigned char escaped =
+                    static_cast<unsigned char>(display[index]);
+                if (escaped < 0x20u || escaped == 0x7fu) return false;
                 output.push_back(display[index]);
             } else {
                 if (value < 0x20u || value == 0x7fu || value == '"') return false;
