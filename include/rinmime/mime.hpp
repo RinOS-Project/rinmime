@@ -69,6 +69,9 @@ struct MailboxLimits {
     size_t maxEntries = 64u;
     size_t maxAddressBytes = 320u;
     size_t maxDisplayBytes = 256u;
+    /* SMTPUTF8 callers may opt into UTF-8 local-parts. Unicode domain labels
+     * still require a separately validated IDNA form. */
+    bool allowUtf8LocalPart = false;
 };
 
 /* Parse one bounded RFC 5322-style header block. Header names are normalized
@@ -79,7 +82,8 @@ bool parseHeaders(const std::string& input, Headers& result,
 
 /* Parse an envelope mailbox list. This deliberately accepts only the
  * unambiguous dot-atom address form with an optional display name; comments,
- * groups, quoted local-parts, and malformed domain literals are rejected. */
+ * groups, quoted local-parts, and malformed domain literals are rejected.
+ * UTF-8 local-parts are accepted only when allowUtf8LocalPart is enabled. */
 bool parseMailboxList(const std::string& input, std::vector<Mailbox>& result,
                       const MailboxLimits& limits = MailboxLimits{});
 

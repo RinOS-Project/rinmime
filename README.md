@@ -17,3 +17,9 @@ RinMIME provides bounded MIME parsing and transfer decoding for RinOS mail and c
 | security | Treat messages and attachment names as untrusted. Enforce authorization and safe filesystem handling in the caller; parsing does not make content safe to render or store. |
 | build | No standalone build manifest is documented. Integrate the public headers and sources through the RinOS consumer build. |
 | test | A `tests` directory is present, but this repository does not document a standalone test command. Run its tests through the owning RinOS build when available. |
+
+`rinmime::parseMailboxList` keeps ASCII dot-atom local-parts as its default.
+SMTPUTF8 callers can set `MailboxLimits::allowUtf8LocalPart` to accept bounded,
+strictly decoded UTF-8 local-parts. Domain labels remain ASCII (including
+caller-supplied IDNA A-labels); the parser does not perform IDNA conversion or
+normalization.
