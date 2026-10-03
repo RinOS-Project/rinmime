@@ -26,3 +26,5 @@ tags are unsupported. Domain labels remain ASCII; RinMIME does not validate
 punycode A-labels or perform IDNA conversion/normalization.
 Quoted-pairs in local-parts and display names accept visible ASCII plus HTAB;
 control bytes and DEL are rejected rather than copied into parsed metadata.
+MIME parameters are scanned with quote-aware semicolon handling; an unterminated
+quoted value, malformed parameter, or trailing parameter bytes fail the parse.

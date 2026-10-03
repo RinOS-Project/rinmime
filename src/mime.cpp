@@ -165,6 +165,8 @@ std::string parameter(const std::string& value, const char* wanted,
     const std::string name = lower(wanted);
     size_t cursor = 0u;
     size_t parameterCount = 0u;
+    bool found = false;
+    std::string selected;
     while ((cursor = value.find(';', cursor)) != std::string::npos) {
         if (parameterCount++ >= maxParameters) {
             if (valid != nullptr) *valid = false;
@@ -172,18 +174,74 @@ std::string parameter(const std::string& value, const char* wanted,
         }
         ++cursor;
         while (cursor < value.size() && asciiSpace(static_cast<unsigned char>(value[cursor]))) ++cursor;
-        const size_t equals = value.find('=', cursor);
-        if (equals == std::string::npos) break;
-        std::string key = lower(trim(value.substr(cursor, equals - cursor)));
-        size_t end = value.find(';', equals + 1u);
-        if (end == std::string::npos) end = value.size();
-        std::string result = trim(value.substr(equals + 1u, end - equals - 1u));
-        if (result.size() >= 2u && result.front() == '"' && result.back() == '"')
-            result = result.substr(1u, result.size() - 2u);
-        if (key == name || key == name + "*") return result;
-        cursor = end;
+        const size_t keyStart = cursor;
+        while (cursor < value.size() &&
+               headerNameValid(value.substr(cursor, 1u)))
+            ++cursor;
+        if (cursor == keyStart) {
+            if (valid != nullptr) *valid = false;
+            return {};
+        }
+        const std::string key = lower(value.substr(keyStart, cursor - keyStart));
+        while (cursor < value.size() && asciiSpace(static_cast<unsigned char>(value[cursor]))) ++cursor;
+        if (cursor >= value.size() || value[cursor] != '=') {
+            if (valid != nullptr) *valid = false;
+            return {};
+        }
+        ++cursor;
+        while (cursor < value.size() && asciiSpace(static_cast<unsigned char>(value[cursor]))) ++cursor;
+        std::string result;
+        if (cursor < value.size() && value[cursor] == '"') {
+            ++cursor;
+            bool closed = false;
+            while (cursor < value.size()) {
+                const unsigned char byte = static_cast<unsigned char>(value[cursor++]);
+                if (byte == '"') {
+                    closed = true;
+                    break;
+                }
+                if (byte == '\\') {
+                    if (cursor >= value.size()) break;
+                    const unsigned char escaped = static_cast<unsigned char>(value[cursor++]);
+                    if (escaped < 0x20u && escaped != '\t') break;
+                    if (escaped == 0x7fu) break;
+                    result.push_back(static_cast<char>(escaped));
+                    continue;
+                }
+                if (byte < 0x20u && byte != '\t') break;
+                if (byte == 0x7fu) break;
+                result.push_back(static_cast<char>(byte));
+            }
+            if (!closed) {
+                if (valid != nullptr) *valid = false;
+                return {};
+            }
+            while (cursor < value.size() && asciiSpace(static_cast<unsigned char>(value[cursor]))) ++cursor;
+            if (cursor < value.size() && value[cursor] != ';') {
+                if (valid != nullptr) *valid = false;
+                return {};
+            }
+        } else {
+            const size_t start = cursor;
+            while (cursor < value.size() && value[cursor] != ';') ++cursor;
+            result = trim(value.substr(start, cursor - start));
+            if (result.empty()) {
+                if (valid != nullptr) *valid = false;
+                return {};
+            }
+            for (unsigned char byte : result) {
+                if (byte <= 0x20u || byte == 0x7fu) {
+                    if (valid != nullptr) *valid = false;
+                    return {};
+                }
+            }
+        }
+        if (!found && (key == name || key == name + "*")) {
+            selected = result;
+            found = true;
+        }
     }
-    return {};
+    return found ? selected : std::string{};
 }
 
 bool findBoundary(const std::string& body, const std::string& marker,
